@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1,user-scalable=no" />
+<title>Mini Juego Pixel Art Retro Mejorado</title>
+<style>
+  /* Reset y estilos base */
+  * {
+    box-sizing: border-box;
+  }
+  body, html {
+    margin: 0; padding: 0;
+    width: 100vw; height: 100vh;
+    background: #000;
+    overflow: hidden;
+    font-family: 'Courier New', Courier, monospace;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+  }
+  #game-container {
+    position: relative;
+    flex-grow: 1;
+    background: #111;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    overflow: hidden;
+  }
+  canvas {
+    background-color: #000;
+    image-rendering: pixelated;
+    width: 100%; /* Ajuste para ocupar toda la pantalla */
+    height: calc(100% - 90px); /* Restar altura controles para evitar solapado */
+    display: block;
+  }
+
+  #score-board, #lives-board, #message {
+    position: absolute;
+    font-size: 20px;
+    font-weight: bold;
+    text-shadow:
+       -1px -1px 0 #000,
+        1px -1px 0 #000,
+       -1px  1px 0 #000,
+        1px  1px 0 #000;
+    z-index: 11;
+  }
+  #score-board { top: 5px; left: 5px; }
+  #lives-board { top: 5px; right: 5px; }
+  #message { top: 5px; right: 5px; color: #0f0; }
+
+  /* Controles para móvil */
+  #controls {
+    position: fixed;
+    bottom: 15px; /* fixed para que siempre esté visible */
+    left: 50%;
+    transform: translateX(-50%);
+    background: #111;
+    display: flex;
+    justify-content: center;
+    user-select: none;
+    padding: 10px 0;
+    gap: 15px;
+    z-index: 20;
+    border-radius: 12px;
+  }
+  #controls button {
+    background: #222;
+    border: 2px solid #0f0;
+    color: #0f0;
+    font-size: 28px;
+    width: 64px;
+    height: 64px;
+    border-radius: 8px;
+    box-shadow: 0 0 5px #0f0;
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s;
+  }
+  #controls button:active,
+  #controls button.pressed {
+    background: #0f0;
+    color: #000;
+  }
+
+  /* Carta básica */
+  .card {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.9);
+    border: 3px solid #0f0;
+    padding: 25px 30px;
+    text-align: center;
+    z-index: 20;
+    box-shadow: 0 0 15px #0f0;
+    border-radius: 12px;
+  }
+  .card h1, .card h2, .card p {
+    margin: 0 0 15px;
+  }
+  .card button {
+    background: #0f0;
+    color: #000;
+    border: none;
+    padding: 12px 25px;
+    font-size: 22px;
+    cursor: pointer;
+    border-radius: 8px;
+    font-weight: bold;
+    box-shadow: 0 0 8px #0f0;
+  }
+
+  /* Texto fugaz */
+  #love-text {
+    position: absolute;
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #ff69b4;
+    font-size: 24px;
+    font-weight: bold;
+    text-shadow: 0 0 4px #ff69b4, 0 0 8px #ff69b4;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 15;
+    user-select: none;
+    transition: opacity 2s ease;
+  }
+</style>
+</head>
+<body>
+<div id="game-container">
+  <canvas id="gameCanvas"></canvas>
+  <div id="score-board">Puntos: 0</div>
+  <div id="lives-board">Vidas: ❤️❤️❤️</div>
+  <div id="message"></div>
+  <!-- Carta bienvenida -->
+  <div id="welcome-card" class="card">
+    <h1>¡Bienvenido!</h1>
+    <p>Controla la nave con las flechas (botones o teclado).</p>
+    <p>Dispara para eliminar todos los objetos negativos que caen 🦖💔☠️⚡👻💣</p>
+    <p>¡Alcanza 10 puntos para desbloquear un mensaje especial!</p>
+    <button id="start-button">Iniciar Juego</button>
+  </div>
+
+  <!-- Carta victoria -->
+  <div id="victory-card" class="card" style="display:none;">
+    <h2>¡Felicidades!</h2>
+    <p>Has alcanzado 10 puntos.</p>
+    <p>Dedico este juego a ti ❤️</p>
+    <button id="continue-button">Seguir Jugando</button>
+  </div>
+  <!-- Carta "volveré" -->
+  <div id="special-card" class="card" style="display:none;">
+    <h2>Volveré por ti</h2>
+    <p>Porque siempre vas a ser mía 💗</p>
+    <button id="special-continue-button">Seguir Jugando</button>
+  </div>
+  <!-- Texto fugaz -->
+  <div id="love-text">te amo hoy mañana y siempre 💗</div>
+  <!-- Carta fin de juego -->
+  <div id="game-over-card" class="card" style="display:none;">
+    <h2>¡Juego Terminado!</h2>
+    <p>Te has quedado sin vidas.</p>
+    <button id="restart-button">Reiniciar Juego</button>
+  </div>
+</div>
+
+<!-- Controles táctiles visibles solo en móvil -->
+<div id="controls">
+  <button id="btn-left" aria-label="Ir a la izquierda">←</button>
+  <button id="btn-shoot" aria-label="Disparar">💥</button>
+  <button id="btn-right" aria-label="Ir a la derecha">→</button>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  let WIDTH = window.innerWidth;
+  let HEIGHT = window.innerHeight - 90;
+  canvas.width = WIDTH;
+  canvas.height = HEIGHT;
+
+  window.addEventListener('resize', () => {
+    WIDTH = window.innerWidth;
+    HEIGHT = window.innerHeight - 90;
+    canvas.width = WIDTH;
+    canvas.height = HEIGHT;
+    playerY = HEIGHT - PLAYER_HEIGHT - 10;
+  });
+
+  const PLAYER_WIDTH = 24;
+  const PLAYER_HEIGHT = 24;
+  let playerX = WIDTH / 2 - PLAYER_WIDTH / 2;
+  let playerY = HEIGHT - PLAYER_HEIGHT - 10;
+  const PLAYER_SPEED = 5;
+  let lives = 3;
+  const maxLives = 3;
+
+  let leftPressed = false;
+  let rightPressed = false;
+  let shootPressed = false;
+
+  class Projectile {
+    constructor(x, y) {
+      this.x = x;
+      this.y = y;
+      this.width = 5;
+      this.height = 10;
+      this.speed = 10;
+      this.active = true;
+    }
+    update() {
+      this.y -= this.speed;
+      if (this.y + this.height < 0) this.active = false;
+    }
+    draw(ctx) {
+      ctx.fillStyle = '#0ff';
+      ctx.fillRect(this.x, this.y, this.width, this.height);
+      ctx.fillStyle = '#6ff';
+      ctx.fillRect(this.x + 1, this.y + 1, this.width - 2, this.height / 2);
+    }
+  }
+  const projectiles = [];
+
+  const enemyTypes = [
+    { char: '🦖', color: '#f00' },
+    { char: '💔', color: '#ff69b4' },
+    { char: '☠️', color: '#ccc' },
+    { char: '⚡', color: '#ff0' },
+    { char: '👻', color: '#fff' },
+    { char: '💣', color: '#800' }
+  ];
+
+  class Enemy {
+    constructor(x, y, type) {
+      this.x = x;
+      this.y = y;
+      this.size = 24;
+      this.speed = 2 + Math.random();
+      this.active = true;
+      this.type = type;
+    }
+    update() {
+      this.y += this.speed;
+      if (this.y > HEIGHT) this.active = false;
+    }
+    draw(ctx) {
+      ctx.font = '24px monospace';
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = this.type.color;
+      ctx.fillText(this.type.char, this.x, this.y);
+    }
+  }
+  let enemies = [];
+
+  class BackgroundParticle {
+    constructor() {
+      this.x = Math.random() * WIDTH;
+      this.y = Math.random() * HEIGHT;
+      this.size = 2 + Math.random() * 2.5;
+      this.speedX = (Math.random() - 0.5) * 0.3;
+      this.speedY = (Math.random() - 0.5) * 0.3;
+      this.alpha = 0.3 + Math.random() * 0.5;
+    }
+    update() {
+      this.x += this.speedX;
+      this.y += this.speedY;
+      if (this.x < 0) this.x = WIDTH;
+      else if (this.x > WIDTH) this.x = 0;
+      if (this.y < 0) this.y = HEIGHT;
+      else if (this.y > HEIGHT) this.y = 0;
+    }
+    draw(ctx) {
+      ctx.fillStyle = `rgba(0,255,255,${this.alpha.toFixed(3)})`;
+      ctx.fillRect(this.x, this.y, this.size, this.size);
+      ctx.fillStyle = `rgba(180,255,255,${(this.alpha * 0.6).toFixed(3)})`;
+      ctx.fillRect(this.x + this.size / 2, this.y + this.size / 2, this.size / 2, this.size / 2);
+    }
+  }
+  const backgroundParticles = [];
+  const BACKGROUND_PARTICLE_COUNT = 110;
+  for (let i = 0; i < BACKGROUND_PARTICLE_COUNT; i++) {
+    backgroundParticles.push(new BackgroundParticle());
+  }
+
+  class EffectParticle {
+    constructor(x, y, color = '0,255,255', speedMultiplier = 1, sizeMultiplier = 1) {
+      this.x = x;
+      this.y = y;
+      this.size = (2 + Math.random() * 2.5) * sizeMultiplier;
+      this.speedX = ((Math.random() - 0.5) * 0.3) * speedMultiplier;
+      this.speedY = ((Math.random() - 0.5) * 0.3) * speedMultiplier;
+      this.alpha = 0.3 + Math.random() * 0.5;
+      this.color = color;
+    }
+    update() {
+      this.x += this.speedX;
+      this.y += this.speedY;
+      this.alpha -= 0.02;
+      if (this.alpha < 0) this.alpha = 0;
+    }
+    draw(ctx) {
+      if (this.alpha <= 0) return;
+      ctx.fillStyle = `rgba(${this.color},${this.alpha.toFixed(3)})`;
+      ctx.fillRect(this.x, this.y, this.size, this.size);
+    }
+  }
+  const effectParticles = [];
+
+  let score = 0;
+  const scoreBoard = document.getElementById('score-board');
+  const livesBoard = document.getElementById('lives-board');
+  const messageBox = document.getElementById('message');
+  const welcomeCard = document.getElementById('welcome-card');
+  const victoryCard = document.getElementById('victory-card');
+  const specialCard = document.getElementById('special-card');
+  const continueButton = document.getElementById('continue-button');
+  const specialContinueButton = document.getElementById('special-continue-button');
+  const loveText = document.getElementById('love-text');
+  const gameOverCard = document.getElementById('game-over-card');
+  const restartButton = document.getElementById('restart-button');
+
+  let messageUnlocked = false;
+  let gamePaused = true;
+
+  let loveTextTimeout = null;
+
+  let shaking = false;
+  let shakeDuration = 0;
+  const MAX_SHAKE_DURATION = 500;
+
+  function updateLivesDisplay() {
+    livesBoard.textContent = 'Vidas: ' + '❤️'.repeat(lives);
+  }
+
+  let audioContext;
+  function playLaserSound() {
+    if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const duration = 0.1;
+    const osc = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(1000, audioContext.currentTime);
+    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+    osc.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    osc.start(audioContext.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1400, audioContext.currentTime + duration);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+    osc.stop(audioContext.currentTime + duration);
+  }
+  function playDamageSound() {
+    if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const duration = 0.15;
+    const osc = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(250, audioContext.currentTime);
+    gainNode.gain.setValueAtTime(0.15, audioContext.currentTime);
+    osc.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    osc.start(audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+    osc.stop(audioContext.currentTime + duration);
+  }
+  function playHeartLostSound() {
+    if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const duration = 0.12;
+    const osc = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(450, audioContext.currentTime);
+    gainNode.gain.setValueAtTime(0.18, audioContext.currentTime);
+    osc.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    osc.start(audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+    osc.stop(audioContext.currentTime + duration);
+  }
+  function playDeathSound() {
+    if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const duration = 0.5;
+    const osc = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(300, audioContext.currentTime);
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    osc.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    osc.start(audioContext.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(50, audioContext.currentTime + duration);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+    osc.stop(audioContext.currentTime + duration);
+  }
+  function playEnemyDestroyedSound() {
+    if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const duration = 0.1;
+    const osc = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(600, audioContext.currentTime);
+    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+    osc.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    osc.start(audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+    osc.stop(audioContext.currentTime + duration);
+  }
+  function playGameOverSound() {
+    if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const duration = 0.5;
+    const osc = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(200, audioContext.currentTime);
+    gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+    osc.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    osc.start(audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+    osc.stop(audioContext.currentTime + duration);
+  }
+
+  function clampPlayerX(x) {
+    return Math.min(Math.max(x, 0), WIDTH - PLAYER_WIDTH);
+  }
+
+  function drawPlayer(x,y) {
+    ctx.save();
+    let offsetX = 0;
+    if(shaking) {
+      offsetX = (Math.random() - 0.5) * 10;
+    }
+    ctx.translate(x + offsetX, y);
+    ctx.fillStyle = '#0f0';
+    ctx.fillRect(8, 0, 8, 24);
+    ctx.fillRect(0, 8, 24, 8);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(10, 2, 4, 6);
+    ctx.fillStyle = '#0ff';
+    ctx.fillRect(10, 4, 4, 2);
+    ctx.fillStyle = '#070';
+    ctx.fillRect(8, 12, 8, 4);
+    ctx.restore();
+  }
+
+  window.addEventListener('keydown', e => {
+    if (e.code === 'ArrowLeft') leftPressed = true;
+    else if (e.code === 'ArrowRight') rightPressed = true;
+    else if (e.code === 'Space') shootPressed = true;
+  });
+  window.addEventListener('keyup', e => {
+    if (e.code === 'ArrowLeft') leftPressed = false;
+    else if (e.code === 'ArrowRight') rightPressed = false;
+    else if (e.code === 'Space') shootPressed = false;
+  });
+
+  const btnLeft = document.getElementById('btn-left');
+  const btnRight = document.getElementById('btn-right');
+  const btnShoot = document.getElementById('btn-shoot');
+  function addTouchListeners(button, downCallback, upCallback){
+    button.addEventListener('touchstart', e => { e.preventDefault(); downCallback(); button.classList.add('pressed');});
+    button.addEventListener('touchend', e => { e.preventDefault(); upCallback(); button.classList.remove('pressed');});
+    button.addEventListener('mousedown', e => { e.preventDefault(); downCallback(); button.classList.add('pressed');});
+    button.addEventListener('mouseup', e => { e.preventDefault(); upCallback(); button.classList.remove('pressed');});
+    button.addEventListener('mouseleave', e => { e.preventDefault(); upCallback(); button.classList.remove('pressed');});
+  }
+  addTouchListeners(btnLeft, () => leftPressed = true, () => leftPressed = false);
+  addTouchListeners(btnRight, () => rightPressed = true, () => rightPressed = false);
+  addTouchListeners(btnShoot, () => shootPressed = true, () => shootPressed = false);
+
+  let enemySpawnTimer = 0;
+  const ENEMY_SPAWN_INTERVAL = 900;
+
+  let lastTime = 0;
+  let lastShotTime = 0;
+  const SHOT_COOLDOWN = 250;
+
+  function showLoveText(){
+    loveText.style.opacity = '1';
+    if(loveTextTimeout) clearTimeout(loveTextTimeout);
+    loveTextTimeout = setTimeout(() => {
+      loveText.style.opacity = '0';
+    }, 2000);
+  }
+
+  function createEnemyHitParticles(x, y) {
+    const count = 8 + Math.floor(Math.random() * 5);
+    for(let i=0; i < count; i++) {
+      effectParticles.push(new EffectParticle(
+        x + Math.random()*24,
+        y + Math.random()*24,
+        '255,50,50',
+        2 + Math.random()*1.5,
+        1 + Math.random()*0.8
+      ));
+    }
+  }
+
+  function createDamageParticles(){
+    const count = 10 + Math.floor(Math.random()*5);
+    for(let i=0; i < count; i++){
+      effectParticles.push(new EffectParticle(
+        playerX + PLAYER_WIDTH/2 + (Math.random()-0.5)*30,
+        playerY + PLAYER_HEIGHT/2 + (Math.random()-0.5)*30,
+        '255,30,30',
+        1 + Math.random()*1.5,
+        1 + Math.random()*0.5
+      ));
+    }
+  }
+
+  function showSpecialCard(){
+    specialCard.style.display = 'block';
+    gamePaused = true;
+  }
+
+  function endGame(){
+    gamePaused = true;
+    playDeathSound();
+    gameOverCard.style.display = 'block';
+  }
+
+  function resetGame(){
+    lives = maxLives;
+    score = 0;
+    updateLivesDisplay();
+    scoreBoard.textContent = 'Puntos: 0';
+    enemies = [];
+    projectiles.length = 0;
+    messageUnlocked = false;
+    specialCard.style.display = 'none';
+    victoryCard.style.display = 'none';
+    gameOverCard.style.display = 'none';
+    welcomeCard.style.display = 'block';
+    gamePaused = true;
+    playerX = WIDTH / 2 - PLAYER_WIDTH / 2;
+    playerY = HEIGHT - PLAYER_HEIGHT - 10;
+    shaking = false;
+    shakeDuration = 0;
+    loveText.style.opacity = '0';
+    effectParticles.length = 0;
+  }
+
+  document.getElementById('start-button').onclick = () => {
+    welcomeCard.style.display = 'none';
+    gamePaused = false;
+    lastTime = performance.now();
+    updateLivesDisplay();
+    scoreBoard.textContent = 'Puntos: 0';
+    score = 0;
+    lives = maxLives;
+    enemies = [];
+    projectiles.length = 0;
+    messageUnlocked = false;
+    victoryCard.style.display = 'none';
+    specialCard.style.display = 'none';
+    gameOverCard.style.display = 'none';
+    loveText.style.opacity = '0';
+    playerX = WIDTH / 2 - PLAYER_WIDTH / 2;
+    playerY = HEIGHT - PLAYER_HEIGHT - 10;
+    shaking = false;
+    shakeDuration = 0;
+    effectParticles.length = 0;
+    requestAnimationFrame(gameLoop);
+  };
+
+  continueButton.onclick = () => {
+    victoryCard.style.display = 'none';
+    gamePaused = false;
+    lastTime = performance.now();
+    requestAnimationFrame(gameLoop);
+  };
+
+  specialContinueButton.onclick = () => {
+    specialCard.style.display = 'none';
+    gamePaused = false;
+    lastTime = performance.now();
+    requestAnimationFrame(gameLoop);
+  };
+
+  restartButton.onclick = () => {
+    resetGame();
+  };
+
+  function gameLoop(timestamp=0) {
+    if (gamePaused) {
+      lastTime = timestamp;
+      requestAnimationFrame(gameLoop);
+      return;
+    }
+
+    const delta = timestamp - lastTime;
+    lastTime = timestamp;
+
+    ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+    for(let p of backgroundParticles) {
+      p.update();
+      p.draw(ctx);
+    }
+
+    for(let i = effectParticles.length - 1; i >= 0; i--) {
+      const p = effectParticles[i];
+      p.update();
+      if(p.alpha <= 0) {
+        effectParticles.splice(i,1);
+      } else {
+        p.draw(ctx);
+      }
+    }
+
+    if(leftPressed) playerX -= PLAYER_SPEED;
+    if(rightPressed) playerX += PLAYER_SPEED;
+    playerX = clampPlayerX(playerX);
+
+    if(shaking) {
+      shakeDuration += delta;
+      if(shakeDuration >= MAX_SHAKE_DURATION) {
+        shaking = false;
+        shakeDuration = 0;
+      }
+    }
+
+    if(shootPressed && timestamp - lastShotTime > SHOT_COOLDOWN) {
+      projectiles.push(new Projectile(playerX + PLAYER_WIDTH/2 - 2.5, playerY));
+      playLaserSound();
+      lastShotTime = timestamp;
+    }
+
+    for(let i=projectiles.length-1; i>=0; i--) {
+      const p = projectiles[i];
+      p.update();
+      p.draw(ctx);
+      if(!p.active) projectiles.splice(i,1);
+    }
+
+    enemySpawnTimer += delta;
+    if(enemySpawnTimer > ENEMY_SPAWN_INTERVAL) {
+      enemySpawnTimer = 0;
+      const enemyType = enemyTypes[Math.floor(Math.random()*enemyTypes.length)];
+      const enemyX = Math.random() * (WIDTH - 24);
+      enemies.push(new Enemy(enemyX, -24, enemyType));
+    }
+
+    for(let i=enemies.length-1; i>=0; i--) {
+      const e = enemies[i];
+      e.update();
+      e.draw(ctx);
+      if(!e.active) enemies.splice(i,1);
+    }
+
+    outer:
+    for(let i = enemies.length - 1; i >= 0; i--) {
+      const e = enemies[i];
+      for(let j = projectiles.length - 1; j >= 0; j--) {
+        const p = projectiles[j];
+        if (
+          p.x < e.x + e.size &&
+          p.x + p.width > e.x &&
+          p.y < e.y + e.size &&
+          p.y + p.height > e.y
+        ) {
+          e.active = false;
+          p.active = false;
+          score++;
+          scoreBoard.textContent = 'Puntos: '+score;
+          playEnemyDestroyedSound();
+          createEnemyHitParticles(e.x, e.y);
+          if(score === 10 && !messageUnlocked) {
+            messageUnlocked = true;
+            victoryCard.style.display = 'block';
+            gamePaused = true;
+          } else if(score > 10 && score % 20 === 0) {
+            showLoveText();
+          }
+          if(score > 0 && (score === 50 || score === 100 || (score > 100 && score % 100 === 0))) {
+            showSpecialCard();
+          }
+          break outer;
+        }
+      }
+    }
+
+    for(let i = enemies.length -1; i>=0; i--) {
+      const e = enemies[i];
+      if(!e.active) continue;
+      if(e.y + e.size >= playerY && e.y <= playerY + PLAYER_HEIGHT) {
+        if(e.x + e.size >= playerX && e.x <= playerX + PLAYER_WIDTH) {
+          e.active = false;
+          lives--;
+          updateLivesDisplay();
+          playHeartLostSound();
+          playDamageSound();
+          createDamageParticles();
+          shaking = true;
+          shakeDuration = 0;
+          if(lives <= 0) {
+            endGame();
+          }
+        }
+      }
+    }
+
+    drawPlayer(playerX, playerY);
+
+    requestAnimationFrame(gameLoop);
+  }
+
+  resetGame();
+})();
+</script>
+</body>
+</html>
+
