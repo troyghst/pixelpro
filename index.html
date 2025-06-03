@@ -5,6 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1,user-scalable=no" />
 <title>t amo mi ari<3</title>
 <style>
+
+  /**;#;$;$ no se ejjeje*/
+  #player-overlay {
+  position: fixed;
+  bottom: 100px; /* altura encima de los controles */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 24px;
+  z-index: 99;
+  pointer-events: none;
+}
+
+#player-overlay::before {
+  content: '';
+  display: block;
+  width: 24px;
+  height: 24px;
+  background: #0f0;
+  box-shadow: 
+    8px 0 #0f0, 
+    -8px 0 #0f0, 
+    0 -8px #0f0, 
+    0 8px #0f0;
+}
+  
   /* Reset y estilos base */
   * {
     box-sizing: border-box;
@@ -133,6 +159,7 @@
 </style>
 </head>
 <body>
+  <div id="player-overlay">
 <div id="game-container">
   <canvas id="gameCanvas"></canvas>
   <div id="score-board">Puntos: 0</div>
@@ -146,7 +173,7 @@
     <p>alcanza 10 puntos para desbloquear un mensaje especial 😝</p>
     <button id="start-button">Iniciar Juego</button>
   </div>
-
+</div>
   <!-- Carta victoria -->
   <div id="victory-card" class="card" style="display:none;">
     <h2>Felicidadesss</h2>
@@ -176,6 +203,7 @@
   <button id="btn-shoot" aria-label="Disparar">💥</button>
   <button id="btn-right" aria-label="Ir a la derecha">→</button>
 </div>
+  
 
 <script>
 (() => {
